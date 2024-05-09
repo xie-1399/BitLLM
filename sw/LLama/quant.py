@@ -2,11 +2,19 @@ import math
 import torch
 from torch import nn
 
-def weight_quant(weight):
+def weight_quant(weight,num_bits=1):
     dtype = weight.dtype
     weight = weight.float()
     s = 1 / weight.abs().mean().clamp(min=1e-5)
     result = (weight * s).round().clamp(-1, 1) / s
+    return result.type(dtype)
+
+# offline quan the linear weight
+def weight_quant_off(weight,num_bits = 1):
+    dtype = weight.dtype
+    weight = weight.float()
+    s = 1 / weight.abs().mean().clamp(min=1e-5)
+    result = (weight * s).round().clamp(-1, 1)
     return result.type(dtype)
 
 

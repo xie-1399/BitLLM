@@ -4,7 +4,7 @@ import numpy as np
 import torch.nn.functional as F
 
 from lm_eval.base import BaseLM
-from datasets import load_dataset
+from datasets import load_dataset,load_from_disk
 
 
 def set_seed(seed):
@@ -13,10 +13,10 @@ def set_seed(seed):
 
 def get_test_dataset(dataset_name, tokenizer, seqlen=2048):
     if dataset_name == "wikitext2":
-        testdata = load_dataset('wikitext', 'wikitext-2-raw-v1', split='test')
+        testdata = load_dataset("../DataSet/wikitext/wikitext-2-raw-v1",split='test') # 'wikitext', 'wikitext-2-raw-v1',
         testdata = "".join(testdata['text']).split('\n')
     elif dataset_name == "c4":
-        testdata = load_dataset('allenai/c4', data_files={'validation': 'en/c4-validation.00000-of-00008.json.gz'}, split='validation')['text']
+        testdata = load_dataset('../DataSet/c4', data_files={'validation': 'en/c4-validation.00000-of-00008.json.gz'}, split='validation')['text']
     else:
         raise NotImplementedError
     

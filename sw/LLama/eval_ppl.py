@@ -7,10 +7,11 @@ from eval_utils import get_test_dataset
 from sw.LLama.bit158_llama import BitnetForCausalLM
 from tqdm import tqdm
 
-# Todo eval the llama ppl
+# the wikitext2 PPL is : 9.981385466240686
+# the c4 PPL is : 9.777814289493739
+# Todo think about the inference step with offline weight
 
 from sw.LLama.tokenization_bitnet import BitnetTokenizer
-
 torch.set_grad_enabled(False)
 
 parser = argparse.ArgumentParser()
@@ -32,7 +33,7 @@ def calulate_loss(model, input, loss_fct):
 
 
 def main(args):
-    datasets = ['c4', 'wikitext2']
+    datasets = ['wikitext2'] #'c4' ,
     model = BitnetForCausalLM.from_pretrained(
         modelpath,
         device_map='auto',
@@ -40,6 +41,7 @@ def main(args):
         use_flash_attention_2=False,
         torch_dtype=torch.float16,
     ).half()
+    # model = torch.nn.DataParallel(model)
     tokenizer = BitnetTokenizer.from_pretrained(modelpath, use_fast=False)
     loss_fct = torch.nn.CrossEntropyLoss(reduction="sum").cuda()
 

@@ -5,9 +5,9 @@ import numpy as np
 import torch
 import tqdm
 from torch.utils.data import DataLoader, Dataset
-from zeta.optim import StableAdamWUnfused
 from sw.BitNet.bit_transformer import BitNetTransformer
 from sw.Autogressive import AutoregressiveWrapper
+from sw.stable_adam import StableAdamWUnfused
 
 # constants
 NUM_BATCHES = int(1e5)
