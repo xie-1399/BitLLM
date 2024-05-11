@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 # the wikitext2 PPL is : 9.981385466240686
 # the c4 PPL is : 9.777814289493739
-# Todo think about the inference step with offline weight
+# the ppl offline weight can also work
 
 from sw.LLama.tokenization_bitnet import BitnetTokenizer
 torch.set_grad_enabled(False)
@@ -52,6 +52,7 @@ def main(args):
         progress = tqdm(range(len(testdata)))
         for ii in progress:
             input = torch.Tensor(testdata[ii]).long().cuda().view(1, -1)
+            print("size:"+ str(input.size()))
             loss = calulate_loss(model, input, loss_fct)
             count += (input.size(-1) - 1)
             acc_loss += loss.item()

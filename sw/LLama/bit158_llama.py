@@ -20,6 +20,7 @@
 """PyTorch LLaMA model."""
 
 import math
+import time
 import warnings
 from typing import List, Optional, Tuple, Union
 
@@ -66,6 +67,12 @@ def _get_unpad_data(attention_mask):
         max_seqlen_in_batch,
     )
 
+AttnLinearTime = 0
+AttnLinearTimeList = []
+MlpTime = 0
+MlpTimeList = []
+LayerTime = 0
+LayerTimeList = []
 
 class BitnetRMSNorm(nn.Module):
     def __init__(self, hidden_size, eps=1e-6):
@@ -284,10 +291,12 @@ class BitnetAttention(nn.Module):
         **kwargs,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         bsz, q_len, _ = hidden_states.size()
-
+        attn_linear_start = time.time()
         query_states = self.q_proj(hidden_states)
         key_states = self.k_proj(hidden_states)
         value_states = self.v_proj(hidden_states)
+        attn_linear_end = time.time()
+        AttnLinearTime = attn_linear_end - attn_linear_start
 
         query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
         key_states = key_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
@@ -327,8 +336,12 @@ class BitnetAttention(nn.Module):
         attn_output = attn_output.reshape(bsz, q_len, self.hidden_size)
 
         attn_output = self.inner_attn_ln(attn_output)
+        attn_linear_o_start = time.time()
         attn_output = self.o_proj(attn_output)
-
+        attn_linear_o_end = time.time()
+        AttnLinearTime += (attn_linear_o_end - attn_linear_o_start)
+        AttnLinearTimeList.append(AttnLinearTime)
+        print(f"Layer {self.layer_idx} attn linear time:" + str(AttnLinearTime))
         if not output_attentions:
             attn_weights = None
 
@@ -346,6 +359,7 @@ class BitnetDecoderLayer(nn.Module):
     def __init__(self, config: BitnetConfig, layer_idx: int):
         super().__init__()
         self.hidden_size = config.hidden_size
+        self.layer_idx = layer_idx
 
         self.self_attn = LLAMA_ATTENTION_CLASSES[config._attn_implementation](config=config, layer_idx=layer_idx)
 
@@ -384,7 +398,7 @@ class BitnetDecoderLayer(nn.Module):
             )
 
         residual = hidden_states
-
+        layer_start = time.time()
         hidden_states = self.input_layernorm(hidden_states)
 
         # Self Attention
@@ -403,17 +417,25 @@ class BitnetDecoderLayer(nn.Module):
         # Fully Connected
         residual = hidden_states
         hidden_states = self.post_attention_layernorm(hidden_states)
+        mlp_start = time.time()
         hidden_states = self.mlp(hidden_states)
+        mlp_end = time.time()
+        MlpTime = mlp_end - mlp_start
+        print(f"MLP Layer {self.layer_idx} time:"+ str(MlpTime))
+        MlpTimeList.append(MlpTime)
         hidden_states = residual + hidden_states
 
         outputs = (hidden_states,)
-
+        layer_end = time.time()
+        LayerTime = layer_end - layer_start
+        print(f"Layer {self.layer_idx} total time:" + str(LayerTime))
+        LayerTimeList.append(LayerTime)
         if output_attentions:
             outputs += (self_attn_weights,)
 
         if use_cache:
             outputs += (present_key_value,)
-
+        # print("linear time radio:" + str((AttnLinearTime + MlpTime)))
         return outputs
 
 

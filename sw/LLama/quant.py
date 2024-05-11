@@ -27,6 +27,8 @@ def activation_quant(x, num_bits=8):
     result = (x * s).round().clamp(Qn, Qp) / s
     return result.type(dtype)
 
+InferenceOnly = True
+
 
 class BitLinear(nn.Linear):
 
@@ -44,10 +46,11 @@ class BitLinear(nn.Linear):
         self.input_bits = input_bits
 
     def forward(self, input):
+        # s = 1 / self.weight.abs().mean().clamp(min=1e-5)
         quant_input = input + (activation_quant(input, self.input_bits) - input).detach()
-        quant_weight = self.weight + (weight_quant(self.weight, self.weight_bits) - self.weight).detach()
-
+        quant_weight = self.weight if(InferenceOnly) else self.weight + (weight_quant(self.weight, self.weight_bits) - self.weight).detach()
         out = nn.functional.linear(quant_input, quant_weight)
+        out = out if(InferenceOnly) else out  # out = out / s if(InferenceOnly) else out
         if not self.bias is None:
             out += self.bias.view(1, -1).expand_as(out)
         return out
