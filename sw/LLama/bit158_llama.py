@@ -69,6 +69,8 @@ def _get_unpad_data(attention_mask):
 
 AttnLinearTime = 0
 AttnLinearTimeList = []
+AttentionTime = 0
+AttentionTimeList = []
 MlpTime = 0
 MlpTimeList = []
 LayerTime = 0
@@ -298,6 +300,7 @@ class BitnetAttention(nn.Module):
         attn_linear_end = time.time()
         AttnLinearTime = attn_linear_end - attn_linear_start
 
+        AttentionTime_start = time.time()
         query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
         key_states = key_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
         value_states = value_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
@@ -324,7 +327,9 @@ class BitnetAttention(nn.Module):
         attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query_states.dtype)
         attn_weights = nn.functional.dropout(attn_weights, p=self.attention_dropout, training=self.training)
         attn_output = torch.matmul(attn_weights, value_states)
-
+        AttentionTime_end = time.time()
+        AttentionTime = AttentionTime_end - AttentionTime_start
+        AttentionTimeList.append(AttentionTime)
         if attn_output.size() != (bsz, self.num_heads, q_len, self.head_dim):
             raise ValueError(
                 f"`attn_output` should be of size {(bsz, self.num_heads, q_len, self.head_dim)}, but is"

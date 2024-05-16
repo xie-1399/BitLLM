@@ -41,6 +41,7 @@ def main(args):
         use_flash_attention_2=False,
         torch_dtype=torch.float16,
     ).half()
+    print(model)
     # model = torch.nn.DataParallel(model)
     tokenizer = BitnetTokenizer.from_pretrained(modelpath, use_fast=False)
     loss_fct = torch.nn.CrossEntropyLoss(reduction="sum").cuda()
