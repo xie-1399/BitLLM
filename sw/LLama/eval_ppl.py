@@ -4,10 +4,10 @@ import torch
 import random
 
 from eval_utils import get_test_dataset
-from sw.LLama.bit158_llama import BitnetForCausalLM
 from tqdm import tqdm
-
-# the wikitext2 PPL is : 9.981385466240686
+from sw.LLama.bit158_llama import BitnetForCausalLM
+# the wikitext2 PPL is : 9.979933869215303
+# the wikitext2 PPL (INT 4) is :
 # the c4 PPL is : 9.777814289493739
 # the ppl offline weight can also work
 
@@ -41,7 +41,7 @@ def main(args):
         use_flash_attention_2=False,
         torch_dtype=torch.float16,
     ).half()
-    print(model)
+    # print(model)
     # model = torch.nn.DataParallel(model)
     tokenizer = BitnetTokenizer.from_pretrained(modelpath, use_fast=False)
     loss_fct = torch.nn.CrossEntropyLoss(reduction="sum").cuda()
@@ -53,7 +53,7 @@ def main(args):
         progress = tqdm(range(len(testdata)))
         for ii in progress:
             input = torch.Tensor(testdata[ii]).long().cuda().view(1, -1)
-            print("size:"+ str(input.size()))
+            # print("size:"+ str(input.size()))
             loss = calulate_loss(model, input, loss_fct)
             count += (input.size(-1) - 1)
             acc_loss += loss.item()

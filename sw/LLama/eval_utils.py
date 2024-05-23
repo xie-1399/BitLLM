@@ -36,6 +36,33 @@ def get_test_dataset(dataset_name, tokenizer, seqlen=2048):
     return data
 
 
+def get_train_dataset(dataset_name, tokenizer, seqlen=2048):
+    if dataset_name == "wikitext2":
+        traindata = load_dataset("../DataSet/wikitext/wikitext-2-raw-v1",
+                                split='train')  # 'wikitext', 'wikitext-2-raw-v1',
+        traindata = "".join(traindata['text']).split('\n')
+    elif dataset_name == "c4":
+        traindata = load_dataset('../DataSet/c4', data_files={'validation': 'en/c4-validation.00000-of-00008.json.gz'},
+                                split='validation')['text']
+    else:
+        raise NotImplementedError
+
+    traindata = [item for item in traindata if item != ""]
+    tokenized_text = [tokenizer(item, add_special_tokens=False)['input_ids'] + [tokenizer.eos_token_id] for item in
+                      traindata]
+    data, doc = [], [tokenizer.bos_token_id]
+    for sen in tokenized_text:
+        if len(sen) > seqlen:
+            continue
+        if len(doc) + len(sen) > seqlen:
+            data.append(doc)
+            doc = [tokenizer.bos_token_id]
+        doc.extend(sen)
+    if len(doc) > 1 and len(doc) <= seqlen:
+        data.append(doc)
+    return data
+
+
 class LMEvalAdaptor(BaseLM):
     def __init__(self, model_name, model, tokenizer, batch_size=1, max_length=-1):
         super().__init__()

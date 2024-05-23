@@ -137,7 +137,7 @@ class BitnetConfig(PretrainedConfig):
         attention_bias=False,
         attention_dropout=0.0,
         weight_bits=1,
-        input_bits=8,
+        input_bits=4,
         **kwargs,
     ):
         self.vocab_size = vocab_size

@@ -46,10 +46,9 @@ from transformers.utils import (
     logging,
     replace_return_docstrings,
 )
+
 from .configuration import BitnetConfig
-from .quant import BitLinear
-
-
+from sw.LLama.quant import BitLinear, Counter
 
 logger = logging.get_logger(__name__)
 
@@ -67,14 +66,23 @@ def _get_unpad_data(attention_mask):
         max_seqlen_in_batch,
     )
 
-AttnLinearTime = 0
-AttnLinearTimeList = []
-AttentionTime = 0
-AttentionTimeList = []
-MlpTime = 0
-MlpTimeList = []
-LayerTime = 0
-LayerTimeList = []
+# about time list
+# AttnLinearTime = 0
+# AttnLinearTimeList = []
+# AttentionTime = 0
+# AttentionTimeList = []
+# MlpTime = 0
+# MlpTimeList = []
+# LayerTime = 0
+# LayerTimeList = []
+
+# about sparse list
+SparseQueryList = []
+SparseKeyList =[]
+SparseAttnList =[]
+SparseValueList =[]
+
+
 
 class BitnetRMSNorm(nn.Module):
     def __init__(self, hidden_size, eps=1e-6):
@@ -298,9 +306,9 @@ class BitnetAttention(nn.Module):
         key_states = self.k_proj(hidden_states)
         value_states = self.v_proj(hidden_states)
         attn_linear_end = time.time()
-        AttnLinearTime = attn_linear_end - attn_linear_start
+        # AttnLinearTime = attn_linear_end - attn_linear_start
 
-        AttentionTime_start = time.time()
+        # AttentionTime_start = time.time()
         query_states = query_states.view(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
         key_states = key_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
         value_states = value_states.view(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
@@ -316,7 +324,8 @@ class BitnetAttention(nn.Module):
 
         key_states = repeat_kv(key_states, self.num_key_value_groups)
         value_states = repeat_kv(value_states, self.num_key_value_groups)
-
+        # SparseQueryList.append(Counter(query_states)[0])
+        # SparseKeyList.append(Counter(key_states)[0])
         attn_weights = torch.matmul(query_states, key_states.transpose(2, 3)) / math.sqrt(self.head_dim)
 
         if attention_mask is not None:  # no matter the length, we just slice it
@@ -326,10 +335,12 @@ class BitnetAttention(nn.Module):
         # upcast attention to fp32
         attn_weights = nn.functional.softmax(attn_weights, dim=-1, dtype=torch.float32).to(query_states.dtype)
         attn_weights = nn.functional.dropout(attn_weights, p=self.attention_dropout, training=self.training)
+        # SparseAttnList.append(Counter(attn_weights)[0])
+        # SparseValueList.append(Counter(value_states)[0])
         attn_output = torch.matmul(attn_weights, value_states)
-        AttentionTime_end = time.time()
-        AttentionTime = AttentionTime_end - AttentionTime_start
-        AttentionTimeList.append(AttentionTime)
+        # AttentionTime_end = time.time()
+        # AttentionTime = AttentionTime_end - AttentionTime_start
+        # AttentionTimeList.append(AttentionTime)
         if attn_output.size() != (bsz, self.num_heads, q_len, self.head_dim):
             raise ValueError(
                 f"`attn_output` should be of size {(bsz, self.num_heads, q_len, self.head_dim)}, but is"
@@ -341,12 +352,12 @@ class BitnetAttention(nn.Module):
         attn_output = attn_output.reshape(bsz, q_len, self.hidden_size)
 
         attn_output = self.inner_attn_ln(attn_output)
-        attn_linear_o_start = time.time()
+        # attn_linear_o_start = time.time()
         attn_output = self.o_proj(attn_output)
-        attn_linear_o_end = time.time()
-        AttnLinearTime += (attn_linear_o_end - attn_linear_o_start)
-        AttnLinearTimeList.append(AttnLinearTime)
-        print(f"Layer {self.layer_idx} attn linear time:" + str(AttnLinearTime))
+        # attn_linear_o_end = time.time()
+        # AttnLinearTime += (attn_linear_o_end - attn_linear_o_start)
+        # AttnLinearTimeList.append(AttnLinearTime)
+        # print(f"Layer {self.layer_idx} attn linear time:" + str(AttnLinearTime))
         if not output_attentions:
             attn_weights = None
 
@@ -403,7 +414,7 @@ class BitnetDecoderLayer(nn.Module):
             )
 
         residual = hidden_states
-        layer_start = time.time()
+        # layer_start = time.time()
         hidden_states = self.input_layernorm(hidden_states)
 
         # Self Attention
@@ -422,19 +433,19 @@ class BitnetDecoderLayer(nn.Module):
         # Fully Connected
         residual = hidden_states
         hidden_states = self.post_attention_layernorm(hidden_states)
-        mlp_start = time.time()
+        # mlp_start = time.time()
         hidden_states = self.mlp(hidden_states)
-        mlp_end = time.time()
-        MlpTime = mlp_end - mlp_start
-        print(f"MLP Layer {self.layer_idx} time:"+ str(MlpTime))
-        MlpTimeList.append(MlpTime)
+        # mlp_end = time.time()
+        # MlpTime = mlp_end - mlp_start
+        # print(f"MLP Layer {self.layer_idx} time:"+ str(MlpTime))
+        # MlpTimeList.append(MlpTime)
         hidden_states = residual + hidden_states
 
         outputs = (hidden_states,)
-        layer_end = time.time()
-        LayerTime = layer_end - layer_start
-        print(f"Layer {self.layer_idx} total time:" + str(LayerTime))
-        LayerTimeList.append(LayerTime)
+        # layer_end = time.time()
+        # LayerTime = layer_end - layer_start
+        # print(f"Layer {self.layer_idx} total time:" + str(LayerTime))
+        # LayerTimeList.append(LayerTime)
         if output_attentions:
             outputs += (self_attn_weights,)
 
@@ -703,7 +714,6 @@ class BitnetModel(BitnetPreTrainedModel):
                 )
 
             hidden_states = layer_outputs[0]
-
             if use_cache:
                 next_decoder_cache = layer_outputs[2 if output_attentions else 1]
 

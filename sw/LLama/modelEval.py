@@ -5,7 +5,8 @@ from accelerate import infer_auto_device_map
 from safetensors import safe_open
 from safetensors.torch import save_file
 
-from sw.LLama.bit158_llama import BitnetForCausalLM, AttnLinearTimeList,LayerTimeList,MlpTimeList,AttentionTimeList
+from sw.LLama.bit158_llama import BitnetForCausalLM
+    # AttnLinearTimeList,LayerTimeList,MlpTimeList,AttentionTimeList
 from sw.LLama.quant import weight_quant,weight_quant_off
 import matplotlib.pyplot as plt
 
@@ -13,11 +14,49 @@ import matplotlib.pyplot as plt
 # the large model sparse radio is 0.3664140039020114
 # the xl model sparse radio is 0.37058823026780996 (24 layers)
 
+def Continoustensor(tensor):
+    zz = 0
+    zo = 0
+    zb = 0
+    oz = 0
+    oo = 0
+    ob = 0
+    bb = 0
+    bo = 0
+    bz = 0
+    for idx in range(0,tensor.numel(),2):
+        if tensor[idx].item() == 0 and tensor[idx + 1].item() == 0:
+            zz += 1
+            print("zz:" + str(zz))
+        elif tensor[idx].item() == 0 and tensor[idx + 1].item() == 1:
+            zo += 1
+            print("zo:" + str(zo))
+        elif tensor[idx].item() == 0 and tensor[idx + 1].item() == -1:
+            zb += 1
+            print("zb:" + str(zb))
+        elif tensor[idx].item() == 1 and tensor[idx + 1].item() == 1:
+            oo += 1
+            print("oo:" + str(oo))
+        elif tensor[idx].item() == 1 and tensor[idx + 1].item() == 0:
+            oz += 1
+            print("oz:" + str(oz))
+        elif tensor[idx].item() == 1 and tensor[idx + 1].item() == -1:
+            ob += 1
+            print("ob:" + str(ob))
+        elif tensor[idx].item() == -1 and tensor[idx + 1].item() == -1:
+            bb += 1
+            print("bb:" + str(bb))
+        elif tensor[idx].item() == -1 and tensor[idx + 1].item() == 1:
+            bo += 1
+            print("bo:" + str(bo))
+        elif tensor[idx].item() == -1 and tensor[idx + 1].item() == 0:
+            bz += 1
+            print("bz:" + str(bz))
+    return zz,zo,zb,oz,oo,ob,bb,bo,bz
+
 def SparseRatio():
-    #
-    #
-    # "../Model/model-00001-of-00003.safetensors","../Model/model-00002-of-00003.safetensors","../Model/model-00003-of-00003.safetensors"
-    fileList = ["../Model/large/model.safetensors"]
+    # "../Model/large/model.safetensors"
+    fileList = ["../Model/model-00001-of-00003.safetensors","../Model/model-00002-of-00003.safetensors","../Model/model-00003-of-00003.safetensors"]
     # "../Model/model-00001-of-00003.safetensors","../Model/model-00002-of-00003.safetensors","../Model/model-00003-of-00003.safetensors"
     #"../Model/tiny/model-00001-of-00002.safetensors","../Model/tiny/model-00002-of-00002.safetensors"
     # pthFile = "../Model/Bit158Net.pth"
@@ -25,6 +64,17 @@ def SparseRatio():
     bitLayersParameters = "proj"
     sums = 0
     nonZerosum = 0
+    onessum = 0
+    biassum = 0
+    # zzsum = 0
+    # zosum = 0
+    # zbsum = 0
+    # ozsum = 0
+    # oosum = 0
+    # obsum = 0
+    # bbsum = 0
+    # bosum = 0
+    # bzsum = 0
     for f in fileList:
         with safe_open(f,framework="pt",device=0) as f:
             # tensor_slice = f.get_slice("model.layers.0.self_attn.k_proj.weight")
@@ -34,13 +84,37 @@ def SparseRatio():
                 if(bitLayersParameters in str(k)):
                     print(str(k)  + " : " + str(f.get_tensor(k).dtype))
                     tensors = weight_quant_off(f.get_tensor(k))
-                    # print(tensors)
+                    # zz,zo,zb,oz,oo,ob,bb,bo,bz = Continoustensor(tensors.reshape(-1))
+                    # zzsum += zz
+                    # zosum += zo
+                    # zbsum += zb
+                    # ozsum += oz
+                    # oosum += oo
+                    # obsum += ob
+                    # bbsum += bb
+                    # bosum += bo
+                    # bzsum += bz
                     nonZero = torch.count_nonzero(tensors).item() # +0 and -0 will not be counted
+                    ones = torch.sum(tensors == 1).item()
+                    bias = torch.sum(tensors == -1).item()
                     nonZerosum += nonZero
+                    onessum += ones
+                    biassum += bias
                     sums += tensors.numel()
                     print("spare ratio:" + str(1 - nonZero / tensors.numel()))
 
     print("nonZeroSum:" + str(nonZerosum))
+    print("onesSum:" + str(onessum))
+    print("biasSum:" + str(biassum))
+    # print("zzSum:" + str(zzsum))
+    # print("zoSum:" + str(zosum))
+    # print("zbSum:" + str(zbsum))
+    # print("ozSum:" + str(ozsum))
+    # print("ooSum:" + str(oosum))
+    # print("obSum:" + str(obsum))
+    # print("bbSum:" + str(bbsum))
+    # print("boSum:" + str(bosum))
+    # print("bzSum:" + str(bzsum))
     print("Sum:" + str(sums))
     print("the spare ratio:" + str(1 - nonZerosum / sums))
 
@@ -100,16 +174,16 @@ def BitlinearTime(length):
         model.eval()
         with torch.no_grad():
             model(tensor)
-        log.write("Attn linear time list:" + str(AttnLinearTimeList) + "\n")
-        log.write("Attn linear total time:" + str(sum(AttnLinearTimeList)) + "\n")
-        log.write("Attention time list:" + str(AttentionTimeList) + "\n")
-        log.write("Attention total time:" + str(sum(AttentionTimeList)) + "\n")
-        log.write("Mlp time list:" + str(MlpTimeList) + "\n")
-        log.write("Mlp total time:" + str(sum(MlpTimeList)) + "\n")
-        log.write("Layer time list:"+ str(LayerTimeList) + "\n")
-        log.write("layer total time:" + str(sum(LayerTimeList)) + "\n")
-        log.write("Bitlinear time radio is:" + str((sum(MlpTimeList) + sum(AttnLinearTimeList))/sum(LayerTimeList)) + "\n")
-        log.write("Attention time radio is:" + str((sum(AttentionTimeList))/sum(LayerTimeList)) + "\n")
+        # log.write("Attn linear time list:" + str(AttnLinearTimeList) + "\n")
+        # log.write("Attn linear total time:" + str(sum(AttnLinearTimeList)) + "\n")
+        # log.write("Attention time list:" + str(AttentionTimeList) + "\n")
+        # log.write("Attention total time:" + str(sum(AttentionTimeList)) + "\n")
+        # log.write("Mlp time list:" + str(MlpTimeList) + "\n")
+        # log.write("Mlp total time:" + str(sum(MlpTimeList)) + "\n")
+        # log.write("Layer time list:"+ str(LayerTimeList) + "\n")
+        # log.write("layer total time:" + str(sum(LayerTimeList)) + "\n")
+        # log.write("Bitlinear time radio is:" + str((sum(MlpTimeList) + sum(AttnLinearTimeList))/sum(LayerTimeList)) + "\n")
+        # log.write("Attention time radio is:" + str((sum(AttentionTimeList))/sum(LayerTimeList)) + "\n")
 
 
 def drawtime():
@@ -155,5 +229,6 @@ if __name__ == '__main__':
     # offlineQuanModel("./Model/raw/model-00001-of-00003.safetensors","./Model/model-00001-of-00003.safetensors")
     # SafetensorsRead("./Model/model-00003-of-00003.safetensors")
     # BitlinearTime(5120) #256/512/1024/1536/2048/4096/5120/6144
-    drawtime()
-    # get_weight("../Model/model-00001-of-00003.safetensors","model.layers.0.mlp.down_proj.weight")
+    # drawtime()
+    weight = get_weight("../Model/model-00001-of-00003.safetensors","model.layers.0.mlp.down_proj.weight")
+    print(Continoustensor(weight.reshape(-1)))
